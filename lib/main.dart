@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ova_se/screens/home.dart';
+import 'package:ova_se/screens/profiler.dart';
 import 'package:ova_se/screens/setting.dart';
+import 'package:ova_se/screens/login.dart'; // 👈 Agrega este import
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,8 +30,8 @@ class OvaSeApp extends StatelessWidget {
 
   ThemeData _buildTheme() {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF4F46E5), // Indigo 600
-      secondary: const Color(0xFF0D9488), // Teal 600
+      seedColor: const Color(0xFF4F46E5),
+      secondary: const Color(0xFF0D9488),
       brightness: Brightness.light,
     );
 
@@ -117,7 +119,7 @@ class OvaSeApp extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-// MAIN SHELL — Splash + navegación
+// MAIN SHELL — Splash → Login → App
 // ─────────────────────────────────────────────
 
 class MainApp extends StatefulWidget {
@@ -128,7 +130,8 @@ class MainApp extends StatefulWidget {
 }
 
 class _MainAppState extends State<MainApp> with SingleTickerProviderStateMixin {
-  bool _splashTerminado = false;
+  // 3 fases: splash → login → app
+  _Fase _fase = _Fase.splash;
   int _indiceActual = 0;
 
   late AnimationController _splashController;
@@ -164,8 +167,26 @@ class _MainAppState extends State<MainApp> with SingleTickerProviderStateMixin {
   void _iniciarAnimacion() async {
     await Future.delayed(const Duration(milliseconds: 2200));
     if (mounted) {
-      setState(() => _splashTerminado = true);
+      // Al terminar el splash, va al Login (no directo al Home)
+      setState(() => _fase = _Fase.login);
     }
+  }
+
+  /// Callback que llama LoginScreen cuando el login es exitoso
+  void _onLoginExitoso() {
+    setState(() => _fase = _Fase.profiler);
+  }
+
+  /// Callback para cerrar sesión
+  void _onLogout() {
+    setState(() {
+      _fase = _Fase.login;
+      _indiceActual = 0; // Opcional: vuelve a la primera pestaña para la próxima vez
+    });
+  }
+
+  void _onProfilerFinalizado() {
+    setState(() => _fase = _Fase.app);
   }
 
   @override
@@ -178,10 +199,24 @@ class _MainAppState extends State<MainApp> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (!_splashTerminado) {
-      return _buildSplash(colorScheme);
-    }
+    switch (_fase) {
+      case _Fase.splash:
+        return _buildSplash(colorScheme);
 
+      case _Fase.login:
+        // Pasamos el callback para saber cuándo el login fue exitoso
+        return LoginScreen(onLoginExitoso: _onLoginExitoso);
+
+      case _Fase.profiler:
+        return ProfilerScreen(onProfilerFinalizado: _onProfilerFinalizado);
+
+      case _Fase.app:
+        return _buildApp(colorScheme);
+    }
+  }
+
+  // ── App principal con navbar ────────────────
+  Widget _buildApp(ColorScheme colorScheme) {
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
@@ -213,6 +248,9 @@ class _MainAppState extends State<MainApp> with SingleTickerProviderStateMixin {
               tag: 'logo_hero',
               child: Image.asset('assets/logo.png', height: 80),
             ),
+            actions: [
+              IconButton(onPressed: _onLogout, icon: const Icon(Icons.logout, color: Colors.white))
+            ],
           ),
         ),
       ),
@@ -273,3 +311,6 @@ class _MainAppState extends State<MainApp> with SingleTickerProviderStateMixin {
     );
   }
 }
+
+// Enum para manejar las 3 fases de la app
+enum _Fase { splash, login, profiler, app }
